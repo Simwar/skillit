@@ -253,11 +253,14 @@ function renderSkillItem(s) {
     const info = document.createElement('div');
     info.className = 'schedule-info';
     const tz = s.schedule.tz ? ' <span class="label">tz</span> ' + escapeHtml(s.schedule.tz) : '';
+    const slack = s.schedule.slackChannel
+      ? ' <span class="label">slack</span> <code>' + escapeHtml(s.schedule.slackChannel) + '</code>'
+      : '';
     const promptLine = s.schedule.prompt
       ? '<br><span class="label">prompt</span> ' + escapeHtml(s.schedule.prompt)
       : '';
     info.innerHTML =
-      '<span class="label">cron</span> <code>' + escapeHtml(s.schedule.cron) + '</code>' + tz +
+      '<span class="label">cron</span> <code>' + escapeHtml(s.schedule.cron) + '</code>' + tz + slack +
       promptLine;
     li.appendChild(info);
   }
@@ -284,7 +287,7 @@ function renderSkillItem(s) {
 function buildScheduleForm(s) {
   const form = document.createElement('form');
   form.className = 'schedule-form';
-  const cur = s.schedule || { cron: '', prompt: '', tz: '' };
+  const cur = s.schedule || { cron: '', prompt: '', tz: '', slackChannel: '' };
   form.innerHTML =
     '<div><div class="field-label">Cron expression</div>' +
       '<input name="cron" placeholder="e.g. 0 9 * * 1-5" value="' + escapeAttr(cur.cron) + '" required /></div>' +
@@ -292,6 +295,8 @@ function buildScheduleForm(s) {
       '<textarea name="prompt">' + escapeHtml(cur.prompt) + '</textarea></div>' +
     '<div><div class="field-label">Timezone (optional, e.g. America/New_York)</div>' +
       '<input name="tz" placeholder="UTC" value="' + escapeAttr(cur.tz || '') + '" /></div>' +
+    '<div><div class="field-label">Slack channel (optional — channel ID like C0123456789 to post results to; bot must be a member)</div>' +
+      '<input name="slackChannel" placeholder="C0123456789" value="' + escapeAttr(cur.slackChannel || '') + '" /></div>' +
     '<div class="status form-status"></div>' +
     '<div class="form-actions">' +
       '<button type="button" class="secondary cancel">Cancel</button>' +
@@ -315,6 +320,7 @@ async function submitScheduleForm(e, name) {
     cron: form.cron.value.trim(),
     prompt: form.prompt.value,
     tz: form.tz.value.trim() || undefined,
+    slackChannel: form.slackChannel.value.trim() || undefined,
   };
   setStatus(statusEl, 'Saving…');
   const r = await fetch('/api/admin/skills/' + encodeURIComponent(name) + '/schedule', {

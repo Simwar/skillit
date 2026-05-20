@@ -161,11 +161,19 @@ async function handlePutSchedule(name: string, req: Request): Promise<Response> 
   const cronExpr = typeof body.cron === 'string' ? body.cron.trim() : '';
   const prompt = typeof body.prompt === 'string' ? body.prompt : '';
   const tz = typeof body.tz === 'string' && body.tz.trim() ? body.tz.trim() : undefined;
+  const slackChannel = typeof body.slackChannel === 'string' && body.slackChannel.trim()
+    ? body.slackChannel.trim()
+    : undefined;
 
   if (!cronExpr) return json({ error: 'cron_required' }, { status: 400 });
   if (!isValidCron(cronExpr)) return json({ error: 'invalid_cron' }, { status: 400 });
 
-  const schedule: Schedule = { cron: cronExpr, prompt: prompt.trim(), ...(tz ? { tz } : {}) };
+  const schedule: Schedule = {
+    cron: cronExpr,
+    prompt: prompt.trim(),
+    ...(tz ? { tz } : {}),
+    ...(slackChannel ? { slackChannel } : {}),
+  };
   await putSchedule(name, schedule);
   return json({ ok: true, schedule });
 }

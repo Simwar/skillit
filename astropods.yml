@@ -33,4 +33,7 @@ dev:
     frontend:
       port: 80
     messaging:
-      adapters: [web]
+      adapters: [web, slack]
+      slack:
+        socket_mode: true
+        auto_thread: true

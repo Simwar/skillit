@@ -81,6 +81,7 @@ export type Schedule = {
   cron: string;
   prompt: string;
   tz?: string;
+  slackChannel?: string;
 };
 
 export type LastRun = {
