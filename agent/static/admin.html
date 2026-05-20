@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Skillit — Admin</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #111;
+    --bg: #fafafa;
+    --muted: #666;
+    --border: #ddd;
+    --accent: #2563eb;
+    --danger: #b91c1c;
+    --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #eee; --bg: #0e0e10; --muted: #999; --border: #2a2a30; }
+  }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); }
+  main { max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+  .sub { color: var(--muted); margin: 0 0 2rem; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; background: var(--bg); }
+  input[type=password], input[type=text] {
+    width: 100%; box-sizing: border-box; padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font: inherit;
+  }
+  button {
+    padding: 0.55rem 1rem; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--accent); color: white; font: inherit; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: inherit; }
+  button.danger { background: var(--danger); border-color: var(--danger); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .row { display: flex; gap: 0.5rem; align-items: center; }
+  .row > input { flex: 1; }
+  .skills { list-style: none; padding: 0; margin: 0; }
+  .skills li {
+    display: block; padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.5rem;
+  }
+  .skills .row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .skills .name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .skills .size { color: var(--muted); font-size: 0.85em; margin-left: 0.75rem; }
+  .skills .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .skills .actions button { padding: 0.35rem 0.7rem; font-size: 0.85em; }
+  .schedule-info {
+    margin-top: 0.5rem; padding: 0.5rem 0.6rem; background: rgba(127,127,127,0.06);
+    border-radius: 4px; font-size: 0.85em;
+  }
+  .schedule-info code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .schedule-info .label { color: var(--muted); margin-right: 0.4rem; }
+  .schedule-form { margin-top: 0.6rem; display: none; flex-direction: column; gap: 0.4rem; }
+  .schedule-form.open { display: flex; }
+  .schedule-form input, .schedule-form textarea {
+    width: 100%; box-sizing: border-box; padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font: inherit;
+  }
+  .schedule-form textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+  .schedule-form .form-row { display: flex; gap: 0.5rem; }
+  .schedule-form .form-row > * { flex: 1; }
+  .schedule-form .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+  .schedule-form .field-label {
+    font-size: 0.75em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 0.15rem;
+  }
+  .last-run {
+    margin-top: 0.4rem; padding: 0.4rem 0.6rem; background: rgba(127,127,127,0.06);
+    border-radius: 4px; font-size: 0.8em;
+  }
+  .last-run pre {
+    margin: 0.3rem 0 0; max-height: 8em; overflow: auto; white-space: pre-wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95em;
+  }
+  .last-run.err { background: rgba(185, 28, 28, 0.08); }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 1.5rem; text-align: center;
+    color: var(--muted); cursor: pointer; transition: border-color 0.1s, color 0.1s;
+  }
+  .drop.over { border-color: var(--accent); color: var(--fg); }
+  .status { min-height: 1.2em; font-size: 0.9em; margin-top: 0.5rem; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--danger); }
+  .topbar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <div>
+      <h1>Skillit Admin</h1>
+      <p class="sub">Upload skill files. Each file's basename becomes the skill name.</p>
+    </div>
+    <button id="logout" class="secondary hidden">Sign out</button>
+  </div>
+
+  <section id="login-card" class="card hidden">
+    <h2 style="margin-top:0">Sign in</h2>
+    <form id="login-form">
+      <label for="password" style="display:block;margin-bottom:0.4rem">Admin password</label>
+      <div class="row">
+        <input id="password" type="password" autocomplete="current-password" required />
+        <button type="submit">Sign in</button>
+      </div>
+      <div id="login-status" class="status"></div>
+    </form>
+  </section>
+
+  <section id="app" class="hidden">
+    <section class="card">
+      <h2 style="margin-top:0">Upload skills</h2>
+      <div id="drop" class="drop">
+        Drop .md files here, or <label style="text-decoration:underline;cursor:pointer">browse<input id="files" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden /></label>.
+      </div>
+      <div id="upload-status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Skills</h2>
+      <ul id="skills" class="skills"></ul>
+      <div id="skills-status" class="status"></div>
+    </section>
+  </section>
+</main>
+
+<script>
+const loginCard = document.getElementById('login-card');
+const appView = document.getElementById('app');
+const logoutBtn = document.getElementById('logout');
+const loginForm = document.getElementById('login-form');
+const loginStatus = document.getElementById('login-status');
+const passwordInput = document.getElementById('password');
+const drop = document.getElementById('drop');
+const filesInput = document.getElementById('files');
+const uploadStatus = document.getElementById('upload-status');
+const skillsList = document.getElementById('skills');
+const skillsStatus = document.getElementById('skills-status');
+
+function setStatus(el, text, kind) {
+  el.textContent = text || '';
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+async function checkSession() {
+  try {
+    const r = await fetch('/api/admin/session');
+    const d = await r.json();
+    showView(d.authenticated);
+  } catch {
+    showView(false);
+  }
+}
+
+function showView(authed) {
+  loginCard.classList.toggle('hidden', authed);
+  appView.classList.toggle('hidden', !authed);
+  logoutBtn.classList.toggle('hidden', !authed);
+  if (authed) refreshSkills();
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus(loginStatus, 'Signing in…');
+  const r = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password: passwordInput.value }),
+  });
+  if (r.ok) {
+    passwordInput.value = '';
+    setStatus(loginStatus, '');
+    showView(true);
+  } else {
+    setStatus(loginStatus, 'Invalid password.', 'err');
+  }
+});
+
+logoutBtn.addEventListener('click', async () => {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  showView(false);
+});
+
+async function refreshSkills() {
+  setStatus(skillsStatus, 'Loading…');
+  try {
+    const r = await fetch('/api/admin/skills');
+    if (r.status === 401) return showView(false);
+    const d = await r.json();
+    renderSkills(d.skills || []);
+    setStatus(skillsStatus, '');
+  } catch (err) {
+    setStatus(skillsStatus, 'Failed to load skills.', 'err');
+  }
+}
+
+function renderSkills(skills) {
+  skillsList.innerHTML = '';
+  if (!skills.length) {
+    const li = document.createElement('li');
+    li.style.color = 'var(--muted)';
+    li.textContent = 'No skills yet. Upload some above.';
+    skillsList.appendChild(li);
+    return;
+  }
+  for (const s of skills) skillsList.appendChild(renderSkillItem(s));
+}
+
+function renderSkillItem(s) {
+  const li = document.createElement('li');
+  li.dataset.name = s.name;
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  const left = document.createElement('div');
+  left.innerHTML = '<span class="name">' + escapeHtml(s.name) + '</span><span class="size">' + s.size + ' B</span>';
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const scheduleBtn = document.createElement('button');
+  scheduleBtn.className = 'secondary';
+  scheduleBtn.textContent = s.schedule ? 'Edit schedule' : 'Schedule';
+  scheduleBtn.addEventListener('click', () => toggleScheduleForm(li, s));
+  actions.appendChild(scheduleBtn);
+
+  if (s.schedule) {
+    const runBtn = document.createElement('button');
+    runBtn.className = 'secondary';
+    runBtn.textContent = 'Run now';
+    runBtn.addEventListener('click', () => runNow(s.name, runBtn));
+    actions.appendChild(runBtn);
+
+    const unscheduleBtn = document.createElement('button');
+    unscheduleBtn.className = 'secondary';
+    unscheduleBtn.textContent = 'Unschedule';
+    unscheduleBtn.addEventListener('click', () => unschedule(s.name));
+    actions.appendChild(unscheduleBtn);
+  }
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'danger';
+  delBtn.textContent = 'Delete';
+  delBtn.addEventListener('click', () => deleteSkill(s.name));
+  actions.appendChild(delBtn);
+
+  row.appendChild(left);
+  row.appendChild(actions);
+  li.appendChild(row);
+
+  if (s.schedule) {
+    const info = document.createElement('div');
+    info.className = 'schedule-info';
+    const tz = s.schedule.tz ? ' <span class="label">tz</span> ' + escapeHtml(s.schedule.tz) : '';
+    const promptLine = s.schedule.prompt
+      ? '<br><span class="label">prompt</span> ' + escapeHtml(s.schedule.prompt)
+      : '';
+    info.innerHTML =
+      '<span class="label">cron</span> <code>' + escapeHtml(s.schedule.cron) + '</code>' + tz +
+      promptLine;
+    li.appendChild(info);
+  }
+
+  if (s.lastRun) {
+    const lr = document.createElement('div');
+    lr.className = 'last-run' + (s.lastRun.error ? ' err' : '');
+    const ran = new Date(s.lastRun.ranAt).toLocaleString();
+    const head = '<span class="label">last run</span> ' + escapeHtml(ran) + ' · ' + s.lastRun.durationMs + 'ms';
+    if (s.lastRun.error) {
+      lr.innerHTML = head + '<pre>' + escapeHtml(s.lastRun.error) + '</pre>';
+    } else if (s.lastRun.output) {
+      lr.innerHTML = head + '<pre>' + escapeHtml(s.lastRun.output) + '</pre>';
+    } else {
+      lr.innerHTML = head;
+    }
+    li.appendChild(lr);
+  }
+
+  li.appendChild(buildScheduleForm(s));
+  return li;
+}
+
+function buildScheduleForm(s) {
+  const form = document.createElement('form');
+  form.className = 'schedule-form';
+  const cur = s.schedule || { cron: '', prompt: '', tz: '' };
+  form.innerHTML =
+    '<div><div class="field-label">Cron expression</div>' +
+      '<input name="cron" placeholder="e.g. 0 9 * * 1-5" value="' + escapeAttr(cur.cron) + '" required /></div>' +
+    '<div><div class="field-label">Prompt (optional — sent to the skill each run; leave blank to fire the skill with no input)</div>' +
+      '<textarea name="prompt">' + escapeHtml(cur.prompt) + '</textarea></div>' +
+    '<div><div class="field-label">Timezone (optional, e.g. America/New_York)</div>' +
+      '<input name="tz" placeholder="UTC" value="' + escapeAttr(cur.tz || '') + '" /></div>' +
+    '<div class="status form-status"></div>' +
+    '<div class="form-actions">' +
+      '<button type="button" class="secondary cancel">Cancel</button>' +
+      '<button type="submit">Save schedule</button>' +
+    '</div>';
+  form.querySelector('.cancel').addEventListener('click', () => form.classList.remove('open'));
+  form.addEventListener('submit', (e) => submitScheduleForm(e, s.name));
+  return form;
+}
+
+function toggleScheduleForm(li, _s) {
+  const form = li.querySelector('.schedule-form');
+  form.classList.toggle('open');
+}
+
+async function submitScheduleForm(e, name) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const statusEl = form.querySelector('.form-status');
+  const body = {
+    cron: form.cron.value.trim(),
+    prompt: form.prompt.value,
+    tz: form.tz.value.trim() || undefined,
+  };
+  setStatus(statusEl, 'Saving…');
+  const r = await fetch('/api/admin/skills/' + encodeURIComponent(name) + '/schedule', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401) return showView(false);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    setStatus(statusEl, 'Save failed: ' + (d.error || r.status), 'err');
+    return;
+  }
+  setStatus(statusEl, '');
+  refreshSkills();
+}
+
+async function unschedule(name) {
+  if (!confirm('Remove the schedule for "' + name + '"?')) return;
+  const r = await fetch('/api/admin/skills/' + encodeURIComponent(name) + '/schedule', { method: 'DELETE' });
+  if (r.status === 401) return showView(false);
+  if (!r.ok) { setStatus(skillsStatus, 'Unschedule failed.', 'err'); return; }
+  refreshSkills();
+}
+
+async function runNow(name, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  const r = await fetch('/api/admin/skills/' + encodeURIComponent(name) + '/run', { method: 'POST' });
+  btn.disabled = false;
+  btn.textContent = orig;
+  if (r.status === 401) return showView(false);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    setStatus(skillsStatus, 'Run failed: ' + (d.error || r.status), 'err');
+    return;
+  }
+  refreshSkills();
+}
+
+async function deleteSkill(name) {
+  if (!confirm('Delete skill "' + name + '"?')) return;
+  const r = await fetch('/api/admin/skills/' + encodeURIComponent(name), { method: 'DELETE' });
+  if (r.status === 401) return showView(false);
+  if (!r.ok) {
+    setStatus(skillsStatus, 'Delete failed.', 'err');
+    return;
+  }
+  refreshSkills();
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function uploadFiles(fileList) {
+  if (!fileList.length) return;
+  const form = new FormData();
+  for (const f of fileList) form.append('files', f, f.name);
+  setStatus(uploadStatus, 'Uploading ' + fileList.length + ' file(s)…');
+  const r = await fetch('/api/admin/skills', { method: 'POST', body: form });
+  if (r.status === 401) return showView(false);
+  const d = await r.json().catch(() => ({}));
+  const ok = (d.uploaded || []).length;
+  const errs = (d.errors || []).length;
+  let msg = 'Uploaded ' + ok + ' skill(s).';
+  if (errs) msg += ' ' + errs + ' rejected (' + d.errors.map(e => e.file + ': ' + e.reason).join('; ') + ').';
+  setStatus(uploadStatus, msg, errs ? 'err' : 'ok');
+  refreshSkills();
+}
+
+filesInput.addEventListener('change', () => uploadFiles([...filesInput.files]));
+
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  if (e.dataTransfer?.files) uploadFiles([...e.dataTransfer.files]);
+});
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+checkSession();
+</script>
+</body>
+</html>

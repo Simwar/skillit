@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://astropods.com/schema/package.json
+spec: package/v1
+name: skillit
+meta: {}
+
+agent:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  interfaces:
+    frontend: true
+    messaging: true
+  inputs:
+    - name: ADMIN_PASSWORD
+      datatype: string
+      secret: true
+      description: Password for the admin upload UI
+    - name: SESSION_SECRET
+      datatype: string
+      secret: true
+      description: HMAC secret used to sign admin session cookies
+
+models:
+  anthropic:
+    provider: anthropic
+
+knowledge:
+  redis:
+    provider: redis
+
+dev:
+  interfaces:
+    frontend:
+      port: 80
+    messaging:
+      adapters: [web]
