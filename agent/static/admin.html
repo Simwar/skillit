@@ -80,6 +80,13 @@
     color: var(--muted); cursor: pointer; transition: border-color 0.1s, color 0.1s;
   }
   .drop.over { border-color: var(--accent); color: var(--fg); }
+  .name-override { margin-top: 0.6rem; display: none; }
+  .name-override.visible { display: block; }
+  .name-override .field-label { font-size: 0.75em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; }
+  .rename-form { margin-top: 0.5rem; display: none; }
+  .rename-form.open { display: flex; gap: 0.4rem; align-items: center; }
+  .rename-form input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .rename-form button { padding: 0.35rem 0.7rem; font-size: 0.85em; }
   .status { min-height: 1.2em; font-size: 0.9em; margin-top: 0.5rem; }
   .status.ok { color: var(--ok); }
   .status.err { color: var(--danger); }
@@ -115,6 +122,10 @@
       <div id="drop" class="drop">
         Drop .md files here, or <label style="text-decoration:underline;cursor:pointer">browse<input id="files" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden /></label>.
       </div>
+      <div id="name-override" class="name-override">
+        <div class="field-label">Skill name (single file only — leave blank to use filename)</div>
+        <input id="name-override-input" type="text" placeholder="e.g. my-skill" />
+      </div>
       <div id="upload-status" class="status"></div>
     </section>
 
@@ -138,6 +149,8 @@ const filesInput = document.getElementById('files');
 const uploadStatus = document.getElementById('upload-status');
 const skillsList = document.getElementById('skills');
 const skillsStatus = document.getElementById('skills-status');
+const nameOverrideEl = document.getElementById('name-override');
+const nameOverrideInput = document.getElementById('name-override-input');
 
 function setStatus(el, text, kind) {
   el.textContent = text || '';
@@ -219,6 +232,12 @@ function renderSkillItem(s) {
   const actions = document.createElement('div');
   actions.className = 'actions';
 
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'secondary';
+  renameBtn.textContent = 'Rename';
+  renameBtn.addEventListener('click', () => toggleRenameForm(li));
+  actions.appendChild(renameBtn);
+
   const scheduleBtn = document.createElement('button');
   scheduleBtn.className = 'secondary';
   scheduleBtn.textContent = s.schedule ? 'Edit schedule' : 'Schedule';
@@ -280,8 +299,63 @@ function renderSkillItem(s) {
     li.appendChild(lr);
   }
 
+  li.appendChild(buildRenameForm(s.name));
   li.appendChild(buildScheduleForm(s));
   return li;
+}
+
+function buildRenameForm(name) {
+  const form = document.createElement('form');
+  form.className = 'rename-form';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = name;
+  input.required = true;
+  input.setAttribute('aria-label', 'New skill name');
+  const save = document.createElement('button');
+  save.type = 'submit';
+  save.textContent = 'Save';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'secondary';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => form.classList.remove('open'));
+  form.appendChild(input);
+  form.appendChild(save);
+  form.appendChild(cancel);
+  form.addEventListener('submit', (e) => submitRename(e, name));
+  return form;
+}
+
+function toggleRenameForm(li) {
+  const form = li.querySelector('.rename-form');
+  form.classList.toggle('open');
+  if (form.classList.contains('open')) form.querySelector('input').focus();
+}
+
+async function submitRename(e, oldName) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  const newName = form.querySelector('input').value.trim();
+  if (!newName || newName === oldName) { form.classList.remove('open'); return; }
+  const save = form.querySelector('button[type=submit]');
+  save.disabled = true;
+  save.textContent = 'Saving…';
+  const r = await fetch('/api/admin/skills/' + encodeURIComponent(oldName), {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: newName }),
+  });
+  save.disabled = false;
+  save.textContent = 'Save';
+  if (r.status === 401) return showView(false);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    setStatus(skillsStatus, 'Rename failed: ' + (d.error || r.status), 'err');
+    return;
+  }
+  form.classList.remove('open');
+  refreshSkills();
 }
 
 function buildScheduleForm(s) {
@@ -381,6 +455,8 @@ async function uploadFiles(fileList) {
   if (!fileList.length) return;
   const form = new FormData();
   for (const f of fileList) form.append('files', f, f.name);
+  const override = nameOverrideInput.value.trim();
+  if (fileList.length === 1 && override) form.append('name', override);
   setStatus(uploadStatus, 'Uploading ' + fileList.length + ' file(s)…');
   const r = await fetch('/api/admin/skills', { method: 'POST', body: form });
   if (r.status === 401) return showView(false);
@@ -390,17 +466,28 @@ async function uploadFiles(fileList) {
   let msg = 'Uploaded ' + ok + ' skill(s).';
   if (errs) msg += ' ' + errs + ' rejected (' + d.errors.map(e => e.file + ': ' + e.reason).join('; ') + ').';
   setStatus(uploadStatus, msg, errs ? 'err' : 'ok');
+  nameOverrideEl.classList.remove('visible');
+  nameOverrideInput.value = '';
   refreshSkills();
 }
 
-filesInput.addEventListener('change', () => uploadFiles([...filesInput.files]));
+filesInput.addEventListener('change', () => {
+  const files = [...filesInput.files];
+  nameOverrideEl.classList.toggle('visible', files.length === 1);
+  if (files.length !== 1) nameOverrideInput.value = '';
+  uploadFiles(files);
+});
 
 drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => {
   e.preventDefault();
   drop.classList.remove('over');
-  if (e.dataTransfer?.files) uploadFiles([...e.dataTransfer.files]);
+  if (!e.dataTransfer?.files) return;
+  const files = [...e.dataTransfer.files];
+  nameOverrideEl.classList.toggle('visible', files.length === 1);
+  if (files.length !== 1) nameOverrideInput.value = '';
+  uploadFiles(files);
 });
 
 function escapeHtml(s) {

@@ -6,6 +6,7 @@ import {
   listSkills,
   putSkill,
   deleteSkill,
+  renameSkill,
   listSchedules,
   putSchedule,
   deleteSchedule,
@@ -204,9 +205,12 @@ async function handleUploadSkills(req: Request): Promise<Response> {
   const uploaded: string[] = [];
   const errors: { file: string; reason: string }[] = [];
 
-  for (const value of form.getAll('files')) {
-    if (!(value instanceof File)) continue;
-    const name = skillNameFromFile(value.name);
+  // Optional single-file name override — only honoured when exactly one file is uploaded.
+  const nameOverride = typeof form.get('name') === 'string' ? (form.get('name') as string).trim() : '';
+  const files = form.getAll('files').filter((v) => v instanceof File) as File[];
+
+  for (const value of files) {
+    const name = files.length === 1 && nameOverride ? nameOverride : skillNameFromFile(value.name);
     if (!SKILL_NAME_PATTERN.test(name)) {
       errors.push({ file: value.name, reason: 'invalid_name' });
       continue;
@@ -221,6 +225,27 @@ async function handleUploadSkills(req: Request): Promise<Response> {
   }
 
   return json({ uploaded, errors });
+}
+
+async function handleRenameSkill(name: string, req: Request): Promise<Response> {
+  if (!SKILL_NAME_PATTERN.test(name)) return json({ error: 'invalid_name' }, { status: 400 });
+  let body: { name?: unknown };
+  try {
+    body = await req.json() as { name?: unknown };
+  } catch {
+    return json({ error: 'invalid_json' }, { status: 400 });
+  }
+  const newName = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!newName) return json({ error: 'name_required' }, { status: 400 });
+  if (!SKILL_NAME_PATTERN.test(newName)) return json({ error: 'invalid_name' }, { status: 400 });
+  if (newName === name) return json({ ok: true, name: newName });
+  try {
+    await renameSkill(name, newName);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return json({ error: message }, { status: 404 });
+  }
+  return json({ ok: true, name: newName });
 }
 
 async function handleDeleteSkill(name: string): Promise<Response> {
@@ -259,6 +284,7 @@ async function route(req: Request): Promise<Response> {
 
       if (!tail) {
         if (req.method === 'DELETE') return handleDeleteSkill(name);
+        if (req.method === 'PATCH') return handleRenameSkill(name, req);
       } else if (tail === 'schedule') {
         if (req.method === 'PUT') return handlePutSchedule(name, req);
         if (req.method === 'DELETE') return handleDeleteSchedule(name);
