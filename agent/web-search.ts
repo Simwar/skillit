@@ -2,6 +2,11 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { tavily } from '@tavily/core';
 
+/** Returns true if TAVILY_API_KEY is set and the tool can be used. */
+export function init(): boolean {
+  return !!process.env.TAVILY_API_KEY;
+}
+
 export const webSearchTool = createTool({
   id: 'web_search',
   description:
@@ -11,10 +16,7 @@ export const webSearchTool = createTool({
     max_results: z.number().int().min(1).max(10).optional().default(5).describe('Number of results to return (default 5).'),
   }),
   execute: async ({ query, max_results }) => {
-    const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey) return { ok: false, error: 'TAVILY_API_KEY is not configured.' };
-
-    const client = tavily({ apiKey });
+    const client = tavily({ apiKey: process.env.TAVILY_API_KEY! });
     const { results } = await client.search(query, {
       maxResults: max_results,
       includeAnswer: true,
