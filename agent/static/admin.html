@@ -123,8 +123,11 @@
         Drop .md files here, or <label style="text-decoration:underline;cursor:pointer">browse<input id="files" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden /></label>.
       </div>
       <div id="name-override" class="name-override">
-        <div class="field-label">Skill name (single file only — leave blank to use filename)</div>
-        <input id="name-override-input" type="text" placeholder="e.g. my-skill" />
+        <div class="field-label">Skill name</div>
+        <div style="display:flex;gap:0.4rem;align-items:center">
+          <input id="name-override-input" type="text" placeholder="e.g. my-skill" style="flex:1" />
+          <button id="upload-confirm-btn" type="button">Upload</button>
+        </div>
       </div>
       <div id="upload-status" class="status"></div>
     </section>
@@ -151,6 +154,8 @@ const skillsList = document.getElementById('skills');
 const skillsStatus = document.getElementById('skills-status');
 const nameOverrideEl = document.getElementById('name-override');
 const nameOverrideInput = document.getElementById('name-override-input');
+const uploadConfirmBtn = document.getElementById('upload-confirm-btn');
+let pendingFiles = null;
 
 function setStatus(el, text, kind) {
   el.textContent = text || '';
@@ -451,12 +456,28 @@ function escapeAttr(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
 
+function showNameOverride(files) {
+  pendingFiles = files;
+  nameOverrideInput.value = files[0].name.replace(/\.[^.]+$/, '');
+  nameOverrideEl.classList.add('visible');
+  nameOverrideInput.focus();
+  nameOverrideInput.select();
+}
+
+function clearNameOverride() {
+  pendingFiles = null;
+  nameOverrideEl.classList.remove('visible');
+  nameOverrideInput.value = '';
+  filesInput.value = '';
+}
+
 async function uploadFiles(fileList) {
   if (!fileList.length) return;
   const form = new FormData();
   for (const f of fileList) form.append('files', f, f.name);
   const override = nameOverrideInput.value.trim();
   if (fileList.length === 1 && override) form.append('name', override);
+  clearNameOverride();
   setStatus(uploadStatus, 'Uploading ' + fileList.length + ' file(s)…');
   const r = await fetch('/api/admin/skills', { method: 'POST', body: form });
   if (r.status === 401) return showView(false);
@@ -466,15 +487,16 @@ async function uploadFiles(fileList) {
   let msg = 'Uploaded ' + ok + ' skill(s).';
   if (errs) msg += ' ' + errs + ' rejected (' + d.errors.map(e => e.file + ': ' + e.reason).join('; ') + ').';
   setStatus(uploadStatus, msg, errs ? 'err' : 'ok');
-  nameOverrideEl.classList.remove('visible');
-  nameOverrideInput.value = '';
   refreshSkills();
 }
 
+uploadConfirmBtn.addEventListener('click', () => { if (pendingFiles) uploadFiles(pendingFiles); });
+nameOverrideInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && pendingFiles) uploadFiles(pendingFiles); });
+
 filesInput.addEventListener('change', () => {
   const files = [...filesInput.files];
-  nameOverrideEl.classList.toggle('visible', files.length === 1);
-  if (files.length !== 1) nameOverrideInput.value = '';
+  if (!files.length) return;
+  if (files.length === 1) { showNameOverride(files); return; }
   uploadFiles(files);
 });
 
@@ -485,8 +507,8 @@ drop.addEventListener('drop', (e) => {
   drop.classList.remove('over');
   if (!e.dataTransfer?.files) return;
   const files = [...e.dataTransfer.files];
-  nameOverrideEl.classList.toggle('visible', files.length === 1);
-  if (files.length !== 1) nameOverrideInput.value = '';
+  if (!files.length) return;
+  if (files.length === 1) { showNameOverride(files); return; }
   uploadFiles(files);
 });
 
