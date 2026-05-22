@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import {
   listSkills,
+  getSkill,
   putSkill,
   deleteSkill,
   renameSkill,
@@ -205,8 +206,8 @@ async function handleUploadSkills(req: Request): Promise<Response> {
   const uploaded: string[] = [];
   const errors: { file: string; reason: string }[] = [];
 
-  // Optional single-file name override — only honoured when exactly one file is uploaded.
-  const nameOverride = typeof form.get('name') === 'string' ? (form.get('name') as string).trim() : '';
+  const rawName = form.get('name');
+  const nameOverride = typeof rawName === 'string' ? rawName.trim() : '';
   const files = form.getAll('files').filter((v) => v instanceof File) as File[];
 
   for (const value of files) {
@@ -239,11 +240,14 @@ async function handleRenameSkill(name: string, req: Request): Promise<Response> 
   if (!newName) return json({ error: 'name_required' }, { status: 400 });
   if (!SKILL_NAME_PATTERN.test(newName)) return json({ error: 'invalid_name' }, { status: 400 });
   if (newName === name) return json({ ok: true, name: newName });
+  const conflict = await getSkill(newName);
+  if (conflict) return json({ error: 'name_conflict' }, { status: 409 });
   try {
     await renameSkill(name, newName);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return json({ error: message }, { status: 404 });
+    const status = message.includes('not found') ? 404 : 500;
+    return json({ error: message }, { status });
   }
   return json({ ok: true, name: newName });
 }

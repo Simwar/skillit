@@ -51,11 +51,9 @@ export async function renameSkill(oldName: string, newName: string): Promise<voi
   const content = await redis.hget(SKILLS_HASH_KEY, oldName);
   if (content == null) throw new Error(`Skill "${oldName}" not found`);
 
-  // Write new, then delete old — each step publishes its own change event.
   await redis.hset(SKILLS_HASH_KEY, newName, content);
   await redis.publish(SKILLS_CHANNEL, JSON.stringify({ op: 'put', name: newName }));
 
-  // Carry schedule over if one exists.
   const schedule = await redis.hget(SCHEDULES_HASH_KEY, oldName);
   if (schedule != null) {
     await redis.hset(SCHEDULES_HASH_KEY, newName, schedule);
@@ -64,7 +62,6 @@ export async function renameSkill(oldName: string, newName: string): Promise<voi
     await redis.publish(SCHEDULES_CHANNEL, JSON.stringify({ op: 'delete', name: oldName }));
   }
 
-  // Carry last-run metadata over.
   const lastRun = await redis.hget(LAST_RUN_HASH_KEY, oldName);
   if (lastRun != null) {
     await redis.hset(LAST_RUN_HASH_KEY, newName, lastRun);

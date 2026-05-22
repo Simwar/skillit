@@ -125,7 +125,7 @@
       <div id="name-override" class="name-override">
         <div class="field-label">Skill name</div>
         <div style="display:flex;gap:0.4rem;align-items:center">
-          <input id="name-override-input" type="text" placeholder="e.g. my-skill" style="flex:1" />
+          <input id="name-override-input" type="text" placeholder="e.g. my-skill" maxlength="64" style="flex:1" />
           <button id="upload-confirm-btn" type="button">Upload</button>
         </div>
       </div>
@@ -316,6 +316,7 @@ function buildRenameForm(name) {
   input.type = 'text';
   input.value = name;
   input.required = true;
+  input.maxLength = 64;
   input.setAttribute('aria-label', 'New skill name');
   const save = document.createElement('button');
   save.type = 'submit';
@@ -356,7 +357,10 @@ async function submitRename(e, oldName) {
   if (r.status === 401) return showView(false);
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
-    setStatus(skillsStatus, 'Rename failed: ' + (d.error || r.status), 'err');
+    const msg = d.error === 'name_conflict'
+      ? 'A skill named "' + newName + '" already exists.'
+      : 'Rename failed: ' + (d.error || r.status);
+    setStatus(skillsStatus, msg, 'err');
     return;
   }
   form.classList.remove('open');
