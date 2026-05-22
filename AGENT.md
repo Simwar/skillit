@@ -92,8 +92,7 @@ Skills can use the `web_search` tool to fetch live results from the web via
 omitted and skills that reference it will fall back to the model's training
 data.
 
-To enable it, set `TAVILY_API_KEY` in the agent's input configuration in the
-Astro platform UI.
+To enable it, set `TAVILY_API_KEY` while deploying the agent blueprint.
 
 ### Inputs
 
